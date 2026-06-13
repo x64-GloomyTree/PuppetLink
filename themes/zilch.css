@@ -1,0 +1,74 @@
+/* zilch.css - Zilch theme for PuppetLink */
+
+/* 0) Font import */
+@import url("https://fonts.googleapis.com/css2?family=Inconsolata:wght@200..900&display=swap");
+
+/* 1) Containers: only font + spacing */
+[class*="messageContent"],
+[class*="markup"] {
+  font-family: "Inconsolata", monospace !important;
+  letter-spacing: 0.1em !important;
+}
+
+/* 2) Zilch gradient on normal message text
+      - Approx. 6-letter wide band, repeated across the line
+      - Clipped strictly to the glyph shapes */
+#app-mount .messageContent_c19a55 span:not([class]) {
+  position: relative;
+  display: inline;
+
+  -webkit-background-clip: text !important;
+  background-clip: text !important;
+
+  -webkit-text-fill-color: transparent !important;
+  color: transparent !important;
+
+  background-image: repeating-linear-gradient(
+    to right,
+    #2a3538 0%,
+    #040e08 10%,
+    #040e08 15%,
+    #efde75 20%,
+    #efde75 25%,
+    #e9dc68 30%,
+    #01040f 40%,
+    #212e35 50%,
+    #3761a5 60%,
+    #070310 70%,
+    #1f366c 80%,
+    #fee277 90%,
+    #f4d86b 100%
+  ) !important;
+
+  background-size: 6em 100%;
+  background-repeat: repeat-x;
+  text-shadow:
+    0.4px  0    0 rgba(255, 255, 255, 0.05),
+   -0.4px  0    0 rgba(255, 255, 255, 0.08),
+    0      0.4px 0 rgba(255, 255, 255, 0.18),
+    0     -0.4px 0 rgba(255, 255, 255, 0.08);
+
+  filter: none !important;
+  font-style: normal !important;
+}
+  filter: none !important;
+  font-style: normal !important;
+}
+
+
+
+/* 4) Inputs stay vanilla */
+[class*="channelTextArea"] *,
+[class*="slateTextArea"] *,
+[contenteditable="true"],
+[role="textbox"] {
+  -webkit-text-fill-color: unset !important;
+  color: unset !important;
+  background: unset !important;
+  background-clip: unset !important;
+  -webkit-background-clip: unset !important;
+  text-shadow: none !important;
+  font-family: unset !important;
+  letter-spacing: unset !important;
+  filter: none !important;
+}

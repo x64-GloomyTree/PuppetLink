@@ -1,0 +1,32 @@
+@import url("https://fonts.googleapis.com/css2?family=Roboto+Mono:ital,wght@1,400;1,500;1,700&display=swap");
+
+:root {
+  --blue-outline: #0b1f5e;
+}
+
+/* Global italic Roboto Mono so uuuh you get illusioned or whatever*/
+* {
+  font-family: "Roboto Mono", monospace !important;
+  font-style: italic !important;
+}
+
+/* Base white + outline — NO !important on color so JS can override per letter */
+html body [class*="markup"] span:not([class]),
+html body [class*="messageContent"] span:not([class]) {
+  color: #ffffff;
+  text-shadow:
+     1px  0   0 var(--blue-outline),
+    -1px  0   0 var(--blue-outline),
+     0    1px 0 var(--blue-outline),
+     0   -1px 0 var(--blue-outline);
+}
+
+/* Usernames untouched, touch me instead or whatever*/
+.username_f3939d,
+.name_f37cb1,
+.headerText_f47574,
+.memberInner_a32223 .nameAndDecorators_cfd1ff {
+  color: inherit !important;
+  text-shadow: none !important;
+  animation: none !important;
+}

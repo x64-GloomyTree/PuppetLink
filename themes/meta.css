@@ -1,0 +1,22 @@
+/* meta.css — Josefin Sans + blue block */
+
+@import url("https://fonts.googleapis.com/css2?family=Josefin+Sans:ital,wght@0,100..700;1,100..700&display=swap");
+
+/* Everything gets the font */
+#app-mount * {
+  font-family: "Josefin Sans", sans-serif !important;
+}
+
+/* Blue block on all message text */
+#app-mount [class*="messageContent"] > span:not([class]),
+#app-mount [class*="markup"] > span:not([class]) {
+  background: #0000fc !important;
+  color: #f1f4ff !important;
+  padding: 0.1em 0.15em !important;
+  -webkit-box-decoration-break: clone !important;
+  box-decoration-break: clone !important;
+  filter: drop-shadow(1px 0 0 #09089e)
+          drop-shadow(-1px 0 0 #09089e) !important;
+  font-style: normal !important;
+  text-shadow: none !important;
+}
