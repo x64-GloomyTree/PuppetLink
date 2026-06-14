@@ -15,6 +15,7 @@ import startupSrc from "./startupData";
 import logoSrc from "./logoData";
 import zilchBgmSrc from "./zilchBgmData";
 import metaBgmSrc from "./meta";
+import flashbangSrc from "./flashbang";
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const BOT_USERNAME = "The Fish GayerThe Fish CurserAPP";
@@ -24,6 +25,7 @@ const CUTSCENE_SCAN_INTERVAL_MS = 750;
 const DEFAULT_FLICKER_COLOR = "#0302d2";
 const THEME_CSS_ID = "vc-puppetlink-theme-css";
 const ZILCH_GLOW_TARGETS = '[class*="messageContent"], [class*="markup"]';
+let flashbangOverlay: HTMLDivElement | null = null;
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type RawEntry = {
@@ -173,6 +175,11 @@ const settings = definePluginSettings({
         type: OptionType.BOOLEAN,
         default: true
     },
+	flashbangEnabled: {
+		description: "Enable flashbang effect for other people's auras",
+		type: OptionType.BOOLEAN,
+		default: true,
+	},
     bgmEnabled: {
         description: "Enable looping background music",
         type: OptionType.BOOLEAN,
@@ -497,6 +504,63 @@ function closeOverlay() {
     syncBGMVolume();
 }
 
+function triggerFlashbang() {
+    if (flashbangOverlay) return; // already running
+
+    const overlay = document.createElement("div");
+    overlay.id = "vc-flashbang-overlay";
+    Object.assign(overlay.style, {
+        position: "fixed",
+        inset: "0",
+        zIndex: "1000001",
+        background: "white",
+        opacity: "0",
+        pointerEvents: "none",
+        transition: "opacity 0.05s linear",
+    });
+    document.body.appendChild(overlay);
+    flashbangOverlay = overlay;
+
+    // Phase 1: deep-fry ramp — progressively saturate + brighten over 2s
+    const deepFryEl = document.createElement("div");
+    Object.assign(deepFryEl.style, {
+        position: "fixed",
+        inset: "0",
+        zIndex: "1000000",
+        pointerEvents: "none",
+        transition: "filter 2s linear",
+        filter: "saturate(1) brightness(1) contrast(1)",
+    });
+    document.body.appendChild(deepFryEl);
+
+    // Kick off the deep-fry filter ramp on next frame
+    requestAnimationFrame(() => {
+        deepFryEl.style.filter = "saturate(8) brightness(3) contrast(2)";
+    });
+
+    // Phase 2: after 2s, slam to full white + play sound
+    setTimeout(() => {
+        overlay.style.transition = "opacity 0.1s linear";
+        overlay.style.opacity = "1";
+        deepFryEl.remove();
+
+        const audio = new Audio(flashbangSrc);
+        audio.volume = (settings.store.bgmVolume ?? 35) / 100;
+        audio.play().catch(() => {});
+
+        // Phase 3: hold white for 5s, then fade back over 3s
+        setTimeout(() => {
+            overlay.style.transition = "opacity 3s ease-out";
+            overlay.style.opacity = "0";
+
+            setTimeout(() => {
+                overlay.remove();
+                flashbangOverlay = null;
+            }, 3000);
+        }, 5000);
+    }, 2000);
+}
+
 function createOverlay(videoUrl: string) {
     closeOverlay();
 
@@ -709,6 +773,12 @@ function getMessageAuthorName(article: Element): string {
 
 function getVisibleCandidates(): Candidate[] {
     const maxAgeMs = (settings.store.maxAgeSeconds ?? 60) * 1000;
+    const me = UserStore.getCurrentUser();
+    if (!me) return [];
+
+    const guildId = SelectedGuildStore.getGuildId();
+    const member = guildId ? GuildMemberStore.getMember(guildId, me.id) : null;
+    const myNames = [me.username, me.globalName, member?.nick].filter(Boolean) as string[];
 
     return ([...document.querySelectorAll("div[role='article']")]
         .map(article => {
@@ -731,6 +801,13 @@ function getVisibleCandidates(): Candidate[] {
 
             const videoUrl = video?.src || directLink || "";
 
+            const hasMentionEl = !!article.querySelector(`[data-user-id="${me.id}"]`);
+            const mentionsMe =
+                text.includes(`<@${me.id}>`) ||
+                text.includes(`<@!${me.id}>`) ||
+                hasMentionEl ||
+                myNames.some(n => text.toLowerCase().includes(n.toLowerCase()));
+
             return {
                 listIds: [listId],
                 username,
@@ -739,7 +816,7 @@ function getVisibleCandidates(): Candidate[] {
                 normalized: normalize(text),
                 videoUrl,
                 ageMs,
-                mentionsMe: false
+                mentionsMe,
             };
         })
         .filter(c => {
@@ -751,56 +828,27 @@ function getVisibleCandidates(): Candidate[] {
             }
 
             if (c.username !== BOT_USERNAME) return false;
-            if (!Number.isFinite(c.ageMs) || c.ageMs < 0 || c.ageMs > maxAgeMs) return false;
+			const fishAbuseEvent = c.embedText.includes("FISH ABUSE EVENT");
+			const isForMe = c.mentionsMe;
+			const effectiveMaxAge = isForMe ? maxAgeMs : maxAgeMs * 2;
+			if (!Number.isFinite(c.ageMs) || c.ageMs < 0 || c.ageMs > effectiveMaxAge) return false;
+            if (c.text.includes("is showing off")) return false;
 
-            const me = UserStore.getCurrentUser();
-            if (!me) return false;
-
-            const guildId = SelectedGuildStore.getGuildId();
-            const member = guildId ? GuildMemberStore.getMember(guildId, me.id) : null;
-            const nick = member?.nick ?? null;
-
-            const articleEl = document.querySelector(`[data-list-item-id="${c.listIds[0]}"]`);
-            const hasMentionEl = !!articleEl?.querySelector(`[data-user-id="${me.id}"]`);
-
-            const fishAbuseEvent = c.embedText.includes("FISH ABUSE EVENT");
-
-            const mentionsMe =
-                c.text.includes(`<@${me.id}>`) ||
-                c.text.includes(`<@!${me.id}>`) ||
-                hasMentionEl ||
-                (nick ? c.text.includes(nick) : false) || // server nickname
-                (me.globalName ? c.text.includes(me.globalName) : false) ||
-                c.text.includes(me.username ?? "");
-
-            // Show cutscene if ANY condition is true
-            if (!mentionsMe && !fishAbuseEvent) return false;
 
             return true;
         }) as Candidate[]);
 }
 
 async function scanForCutscene() {
-    if (settings.store.cutsceneMode === "none") {
-        console.log("[IF] scan skipped: cutsceneMode=none");
-        return;
-    }
-
-    if (activeOverlay) {
-        console.log("[IF] scan skipped: activeOverlay exists");
-        return;
-    }
-
-    if (bootOverlay) {
-        console.log("[IF] scan skipped: bootOverlay exists");
-        return;
-    }
+    if (settings.store.cutsceneMode === "none") { console.log("[IF] scan skipped: cutsceneMode=none"); return; }
+    if (activeOverlay) { console.log("[IF] scan skipped: activeOverlay exists"); return; }
+    if (bootOverlay) { console.log("[IF] scan skipped: bootOverlay exists"); return; }
 
     const articles = document.querySelectorAll("div[role='article']");
-    console.log(`[IF] scanning ${articles.length} articles`);
+    console.log("[IF] scanning", articles.length, "articles");
 
     const candidates = getVisibleCandidates();
-    console.log(`[IF] candidates after filter: ${candidates.length}`, candidates);
+    console.log("[IF] candidates after filter:", candidates.length, candidates);
 
     if (!candidates.length) {
         [...articles].forEach(article => {
@@ -815,12 +863,9 @@ async function scanForCutscene() {
             const ageMs = timeIso ? Date.now() - new Date(timeIso).getTime() : Infinity;
             const me = UserStore.getCurrentUser();
             console.log("[IF] article:", {
-                listId,
-                username,
+                listId, username,
                 usernameMatch: username === BOT_USERNAME,
-                videoSrc: video?.src,
-                directLink,
-                ageMs,
+                videoSrc: video?.src, directLink, ageMs,
                 maxAgeMs: (settings.store.maxAgeSeconds ?? 60) * 1000,
                 mentionsMe: me ? (
                     text.includes(`<@${me.id}>`) ||
@@ -840,20 +885,24 @@ async function scanForCutscene() {
         console.log("[IF] skipped: already processed listId", newest.listIds[0]);
         return;
     }
-
     processedListIds.add(newest.listIds[0]);
 
-    if (settings.store.cutsceneMode === "new") {
-        const alreadySeen = await hasSeenSimilar(newest.normalized);
-        if (alreadySeen) {
-            console.log("[IF] skipped: already seen similar text");
-            return;
-        }
-    }
+    console.log("[IF] triggering overlay for", newest.videoUrl, "mentionsMe:", newest.mentionsMe);
 
-    console.log("[IF] triggering overlay for:", newest.videoUrl);
-    await addSeenText(newest.normalized);
-    createOverlay(newest.videoUrl);
+    if (newest.mentionsMe) {
+        // Personal cutscene — apply seen-text dedup
+        if (settings.store.cutsceneMode === "new") {
+            const alreadySeen = await hasSeenSimilarText(newest.normalized);
+            if (alreadySeen) {
+                console.log("[IF] skipped: already seen similar text");
+                return;
+            }
+        }
+        await addSeenText(newest.normalized);
+        createOverlay(newest.videoUrl);
+	} else {
+		if (settings.store.flashbangEnabled) triggerFlashbang();
+	}
 }
 
 // ─── Boot screen ──────────────────────────────────────────────────────────────
@@ -1035,7 +1084,7 @@ function showBootScreen() {
 function startPlugin() {
     processedListIds = new Set();
     lastTickInterval = settings.store.tickInterval || 80;
-
+    injectSettingsButton();
     // Apply the selected theme (injects CSS + starts theme effects)
     applyTheme(settings.store.activeTheme as ThemeId ?? "illusion");
 
@@ -1068,6 +1117,9 @@ function startPlugin() {
 function stopPlugin() {
     stopFlickerLoop();
     stopZilchGlowLoop();
+	flashbangOverlay?.remove();
+	flashbangOverlay = null;
+	document.getElementById("vc-puppetlink-settings-btn")?.remove();
     if (cutsceneScanTimer) {
         clearInterval(cutsceneScanTimer);
         cutsceneScanTimer = null;
