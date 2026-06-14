@@ -1084,7 +1084,6 @@ function showBootScreen() {
 function startPlugin() {
     processedListIds = new Set();
     lastTickInterval = settings.store.tickInterval || 80;
-    injectSettingsButton();
     // Apply the selected theme (injects CSS + starts theme effects)
     applyTheme(settings.store.activeTheme as ThemeId ?? "illusion");
 
@@ -1119,7 +1118,6 @@ function stopPlugin() {
     stopZilchGlowLoop();
 	flashbangOverlay?.remove();
 	flashbangOverlay = null;
-	document.getElementById("vc-puppetlink-settings-btn")?.remove();
     if (cutsceneScanTimer) {
         clearInterval(cutsceneScanTimer);
         cutsceneScanTimer = null;
